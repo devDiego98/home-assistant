@@ -1,0 +1,22 @@
+{
+  "name": "casa",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Self-hosted AI-powered home management system",
+  "scripts": {
+    "backend": "pnpm --filter @casa/backend dev",
+    "mobile": "pnpm --filter @casa/mobile start",
+    "build": "pnpm --filter @casa/shared build && pnpm --filter !@casa/shared build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint",
+    "clean": "pnpm -r clean && rm -rf node_modules"
+  },
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=8"
+  },
+  "packageManager": "pnpm@8.15.9",
+  "devDependencies": {
+    "typescript": "^5.4.5"
+  }
+}

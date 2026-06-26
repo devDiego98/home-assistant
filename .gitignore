@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+.expo/
+*.js.map
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Testing
+coverage/
+
+# Expo
+.expo-shared/
+
+# Database
+*.db
+*.sqlite
+
+# AI models (large binary files)
+ai/models/*.pt
+ai/models/*.onnx
+
+# Docker volumes (local dev)
+infra/volumes/

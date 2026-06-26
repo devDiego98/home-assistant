@@ -1,0 +1,50 @@
+# Frigate NVR configuration
+# See https://docs.frigate.video/configuration/ for full reference
+
+mqtt:
+  host: mosquitto
+  port: 1883
+  user: frigate
+  password: "{FRIGATE_MQTT_PASSWORD}"
+
+detectors:
+  cpu:
+    type: cpu
+
+# Record all cameras
+record:
+  enabled: true
+  retain:
+    days: 7
+    mode: all
+  events:
+    retain:
+      default: 30
+      mode: motion
+
+# Snapshots on detection
+snapshots:
+  enabled: true
+  timestamp: false
+  bounding_box: true
+  retain:
+    default: 14
+
+# Define cameras below — add one block per camera
+# cameras:
+#   front_door:
+#     ffmpeg:
+#       inputs:
+#         - path: rtsp://admin:{FRIGATE_RTSP_PASSWORD}@192.168.1.x:554/stream1
+#           roles:
+#             - detect
+#             - record
+#     detect:
+#       width: 1280
+#       height: 720
+#       fps: 5
+#     objects:
+#       track:
+#         - person
+#         - car
+#         - dog

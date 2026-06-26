@@ -141,27 +141,25 @@ All hardware listed below is available on **MercadoLibre Argentina**. Search ter
 
 ---
 
-## Repository Structure (planned)
+## Repository Structure
 
 ```
 home-assistant/
-├── server/               # Node.js API backend
-│   ├── src/
-│   │   ├── routes/       # API endpoints
-│   │   ├── services/     # Business logic
-│   │   └── db/           # Database models & migrations
-│   └── Dockerfile
-├── ai/                   # Python AI/ML services
-│   ├── detector/         # Object detection processing
-│   └── Dockerfile
-├── mobile/               # React Native Expo app
-│   ├── app/              # Screens
-│   ├── components/       # Reusable UI components
-│   └── services/         # API + WebSocket clients
-├── infra/                # Infrastructure config
-│   ├── docker-compose.yml
-│   ├── nginx/
-│   └── frigate/          # Frigate NVR config
+├── apps/
+│   ├── backend/          # Node.js + Fastify API
+│   │   ├── src/
+│   │   │   ├── routes/   # REST endpoints
+│   │   │   ├── services/ # Tuya, MQTT integrations
+│   │   │   └── db/       # Drizzle ORM schema + migrations
+│   │   └── Dockerfile
+│   └── mobile/           # React Native + Expo app
+│       ├── app/          # Expo Router screens
+│       ├── components/   # Reusable UI
+│       └── services/     # API + WebSocket clients
+├── packages/
+│   └── shared/           # TypeScript types shared by both apps
+├── infra/                # Docker Compose, Nginx, Frigate, Mosquitto
+├── ai/                   # Python AI/ML scripts (future)
 └── README.md
 ```
 
@@ -169,7 +167,6 @@ home-assistant/
 
 ## Security Model
 
-- All traffic encrypted via HTTPS (TLS)
 - Remote access via **Tailscale VPN** — no ports exposed to the open internet
 - JWT-based authentication with refresh token rotation
 - Camera streams never leave the home network unencrypted
@@ -179,17 +176,218 @@ home-assistant/
 
 ## Getting Started
 
-> Setup instructions will be added as each phase is completed. Each phase will have its own `SETUP.md` in the relevant folder.
+### Prerequisites
 
-**Prerequisites:**
-- A PC, laptop, or mini PC running Ubuntu Server (i5+ CPU, 8GB RAM minimum, 16GB recommended for AI detection) — see hardware guide above
-- Docker and Docker Compose installed on the home server
-- At least one RTSP-capable IP camera (e.g. TP-Link Tapo C200 or Ezviz C3W)
-- A smartphone (iOS or Android)
-- Tailscale account (free tier is sufficient)
+| Requirement | Notes |
+|---|---|
+| **Node.js 20+** | Use nvm: `nvm install 20 && nvm use 20` |
+| **pnpm 8+** | `npm install -g pnpm@8` |
+| **PostgreSQL** | Local install or Docker |
+| **Redis** | `docker run -d --name casa_redis -p 127.0.0.1:6379:6379 redis:7-alpine` |
+| **Tailscale account** | Free at [tailscale.com](https://tailscale.com) — needed for remote access |
+| **Expo Go** | Install on your phone from the App Store / Play Store |
+
+---
+
+### 1. Install dependencies
+
+```bash
+nvm use 20
+pnpm install
+```
+
+---
+
+### 2. Set up the database
+
+If using Docker for Postgres:
+```bash
+docker run -d --name casa_postgres \
+  -e POSTGRES_USER=casa \
+  -e POSTGRES_PASSWORD=yourpassword \
+  -e POSTGRES_DB=casa_db \
+  -p 127.0.0.1:5432:5432 \
+  postgres:16-alpine
+```
+
+If using a local Postgres installation, create the role and database manually:
+```bash
+psql -U your_user -d postgres -c "CREATE ROLE casa WITH LOGIN PASSWORD 'yourpassword';"
+psql -U your_user -d postgres -c "CREATE DATABASE casa_db OWNER casa;"
+```
+
+---
+
+### 3. Configure the backend
+
+```bash
+cp apps/backend/.env.example apps/backend/.env
+```
+
+Edit `apps/backend/.env` and set at minimum:
+
+```env
+DATABASE_URL=postgresql://casa:yourpassword@127.0.0.1:5432/casa_db
+REDIS_URL=redis://127.0.0.1:6379
+JWT_SECRET=<run: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))">
+```
+
+Run database migrations:
+```bash
+pnpm --filter @casa/backend db:generate
+pnpm --filter @casa/backend db:migrate
+```
+
+Create the first admin user:
+```bash
+# Generate a SHA-256 hash of your password
+node -e "const c=require('crypto'); console.log(c.createHash('sha256').update('YourPassword').digest('hex'))"
+
+# Insert the user
+psql -U casa -d casa_db -c "INSERT INTO users (id, email, name, password_hash, role) VALUES (gen_random_uuid(), 'you@email.com', 'Your Name', '<hash>', 'admin');"
+```
+
+---
+
+### 4. Set up Tailscale (required for phone access)
+
+Tailscale allows your phone to reach the home server from **any network** — home WiFi, mobile data, abroad — without opening any ports.
+
+**On your server/Mac:**
+```bash
+# macOS
+brew install tailscale
+sudo tailscale up
+
+# Ubuntu server
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up
+
+# Get your server's Tailscale IP (you will need this)
+tailscale ip -4
+```
+
+**On your phone:** Install **Tailscale** from the App Store or Play Store and sign in with the **same account**.
+
+Once both devices appear in the Tailscale dashboard, they can reach each other from any network.
+
+---
+
+### 5. Configure the mobile app
+
+```bash
+cp apps/mobile/.env.example apps/mobile/.env
+```
+
+Edit `apps/mobile/.env`:
+```env
+# Replace with your server's Tailscale IP from step 4
+EXPO_PUBLIC_API_URL=http://100.x.x.x:3000
+```
+
+> The `EXPO_PUBLIC_API_URL` hostname is also used automatically as the Metro bundler address — no extra config needed.
+
+---
+
+### 6. Start the backend
+
+```bash
+nvm use 20
+pnpm backend
+```
+
+Verify it's running:
+```bash
+curl http://localhost:3000/health
+# {"status":"ok"}
+```
+
+---
+
+### 7. Start the mobile app
+
+```bash
+nvm use 20
+pnpm mobile
+```
+
+This automatically starts Metro with your Tailscale IP as the packager host. A QR code will appear in the terminal.
+
+**On your phone:**
+1. Make sure **Tailscale** is connected (VPN toggle is on)
+2. Open **Expo Go**
+3. Tap **Scan QR code** and scan the code in your terminal
+
+The app will load and connect to your backend through Tailscale — regardless of which network your phone is on.
+
+> **Troubleshooting:** If the QR code says `exp://192.168.x.x:...` instead of your Tailscale IP, make sure `EXPO_PUBLIC_API_URL` in `apps/mobile/.env` has your Tailscale IP, then restart Metro.
+
+---
+
+### 8. Connect SmartLife / Tuya devices (optional)
+
+To control SmartLife lights from the floor plan:
+
+1. Register at [developer.tuya.com](https://developer.tuya.com) (free)
+2. Create a Cloud Project → link your SmartLife app account under **Devices → Link App Account**
+3. Copy your credentials into `apps/backend/.env`:
+
+```env
+TUYA_CLIENT_ID=your_client_id
+TUYA_CLIENT_SECRET=your_client_secret
+TUYA_REGION=us   # us / eu / cn — match where you registered
+```
+
+4. Restart the backend. In the app, go to **Home → Edit Layout**, tap on the floor plan to place a light, and the device picker will show all your SmartLife devices.
+
+---
+
+## Daily Usage
+
+| Task | Command |
+|---|---|
+| Start backend | `pnpm backend` |
+| Start mobile app | `pnpm mobile` |
+| Run DB migrations after schema changes | `pnpm --filter @casa/backend db:generate && pnpm --filter @casa/backend db:migrate` |
+| Start all infra (Docker) | `cd infra && docker compose up -d` |
+
+---
+
+## Project Phases
+
+### Phase 1 — Foundation ✅
+- [x] Monorepo with shared TypeScript types
+- [x] Node.js/Fastify API with JWT authentication
+- [x] PostgreSQL + Redis
+- [x] Tailscale for secure remote access
+- [x] React Native mobile app with login, floor plan, light control
+
+### Phase 2 — Camera System
+- [ ] Integrate IP cameras via RTSP/ONVIF
+- [ ] Deploy Frigate NVR for recording and clip storage
+- [ ] Live camera feeds in mobile app (WebRTC/HLS)
+- [ ] Camera timeline — browse recordings by date
+
+### Phase 3 — AI Security
+- [ ] Enable Frigate object detection (people, vehicles, animals)
+- [ ] Configure detection zones per camera
+- [ ] Push notifications with snapshot when person detected
+- [ ] Security event log with annotated video clips
+
+### Phase 4 — Smart Home Control
+- [ ] MQTT broker + Zigbee2MQTT for Zigbee devices
+- [ ] Device discovery and dashboard
+- [ ] Smart lock integration
+- [ ] Real-time device state via WebSocket
+
+### Phase 5 — Automations & Intelligence
+- [ ] Automation rule builder (if X then Y)
+- [ ] Time-based schedules
+- [ ] Presence-based automations
+- [ ] Daily digest notifications
 
 ---
 
 ## Contributing / Roadmap Notes
 
-This is a personal home project. The goal is a fully self-hosted, privacy-first system where all data stays in the home. Cloud services are used only for push notifications (Firebase) and VPN coordination (Tailscale) — neither receives camera footage or device data.
+This is a personal home project. All data stays in the home — cloud services are used only for VPN coordination (Tailscale) and optionally push notifications (Firebase). No camera footage or device data ever leaves the network.

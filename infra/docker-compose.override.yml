@@ -1,0 +1,12 @@
+# Local dev overrides — not committed with secrets
+# Copy to docker-compose.override.yml and fill in values
+version: '3.9'
+
+services:
+  postgres:
+    ports:
+      - "5432:5432"
+
+  redis:
+    ports:
+      - "6379:6379"
