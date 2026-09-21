@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '../db/index';
 import { floorLights } from '../db/schema/index';
 import { tuyaService } from '../services/tuya';
+import { tuyaLocalService } from '../services/tuyaLocal';
 import type { CreateFloorLightRequest } from '@casa/shared';
 
 const floorRoutes: FastifyPluginAsync = async (fastify) => {
@@ -36,24 +37,28 @@ const floorRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.send({ success: true, data: lights });
   });
 
-  // Place a new light on the floor plan
+  // Link a light — optionally placed on the floor plan (positionX/positionY), otherwise just linked
   fastify.post<{ Body: CreateFloorLightRequest }>('/', async (request, reply) => {
-    const { name, tuyaDeviceId, positionX, positionY } = request.body;
-    if (!name || !tuyaDeviceId || positionX == null || positionY == null) {
+    const { name, tuyaDeviceId, positionX, positionY, roomId } = request.body;
+    if (!name || !tuyaDeviceId) {
       return reply.status(400).send({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Missing required fields' } });
     }
 
-    const [light] = await db.insert(floorLights).values({ name, tuyaDeviceId, positionX, positionY }).returning();
+    const [light] = await db
+      .insert(floorLights)
+      .values({ name, tuyaDeviceId, positionX: positionX ?? null, positionY: positionY ?? null, roomId: roomId ?? null })
+      .returning();
     return reply.status(201).send({ success: true, data: light });
   });
 
-  // Update position or name
+  // Update position, name, or room assignment
   fastify.put<{ Params: { id: string }; Body: Partial<CreateFloorLightRequest> }>('/:id', async (request, reply) => {
     const updates: Partial<typeof floorLights.$inferInsert> = {};
-    const { name, positionX, positionY } = request.body;
+    const { name, positionX, positionY, roomId } = request.body;
     if (name !== undefined) updates.name = name;
     if (positionX !== undefined) updates.positionX = positionX;
     if (positionY !== undefined) updates.positionY = positionY;
+    if (roomId !== undefined) updates.roomId = roomId;
     updates.updatedAt = new Date();
 
     const [updated] = await db.update(floorLights).set(updates).where(eq(floorLights.id, request.params.id)).returning();
@@ -72,9 +77,9 @@ const floorRoutes: FastifyPluginAsync = async (fastify) => {
 
       if (tuyaService.isConfigured()) {
         if (brightness !== undefined) {
-          await tuyaService.setBrightness(light.tuyaDeviceId, brightness);
+          await tuyaLocalService.setBrightness(light.tuyaDeviceId, brightness);
         } else {
-          await tuyaService.toggleLight(light.tuyaDeviceId, on);
+          await tuyaLocalService.toggleLight(light.tuyaDeviceId, on);
         }
       }
 

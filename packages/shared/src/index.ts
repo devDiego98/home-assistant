@@ -5,3 +5,4 @@ export * from './types/alert.js';
 export * from './types/automation.js';
 export * from './types/api.js';
 export * from './types/floor.js';
+export * from './types/room.js';

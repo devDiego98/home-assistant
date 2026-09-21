@@ -12,6 +12,7 @@ import alertRoutes from './routes/alerts';
 import wsRoutes from './routes/ws';
 import tuyaRoutes from './routes/tuya';
 import floorRoutes from './routes/floor';
+import roomRoutes from './routes/rooms';
 
 const fastify = Fastify({
   logger: {
@@ -33,6 +34,7 @@ await fastify.register(alertRoutes, { prefix: '/api/alerts' });
 await fastify.register(wsRoutes, { prefix: '/api/ws' });
 await fastify.register(tuyaRoutes, { prefix: '/api/tuya' });
 await fastify.register(floorRoutes, { prefix: '/api/floor/lights' });
+await fastify.register(roomRoutes, { prefix: '/api/rooms' });
 
 fastify.get('/health', async () => ({ status: 'ok', timestamp: new Date().toISOString() }));
 

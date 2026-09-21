@@ -45,7 +45,7 @@ export default function HomeScreen() {
     setShowModal(true);
   };
 
-  const handlePlaceConfirm = async (name: string, deviceId: string) => {
+  const handlePlaceConfirm = async (name: string, deviceId: string, roomId: string | null) => {
     if (!pendingPos) return;
     setShowModal(false);
     const res = await api.floor.placeLight({
@@ -53,6 +53,7 @@ export default function HomeScreen() {
       tuyaDeviceId: deviceId,
       positionX: pendingPos.x,
       positionY: pendingPos.y,
+      roomId,
     });
     if (res.success) {
       setLights((prev) => [...prev, res.data as FloorLight]);
@@ -115,15 +116,15 @@ export default function HomeScreen() {
           onPress={handleFloorTap}
         />
 
-        {/* Light buttons */}
-        {lights.map((light) => (
+        {/* Light buttons — only lights placed on the floor plan */}
+        {lights.filter((l) => l.positionX != null && l.positionY != null).map((light) => (
           <TouchableOpacity
             key={light.id}
             style={[
               styles.lightBtn,
               {
-                left: light.positionX * PLAN_W - 18,
-                top: light.positionY * planHeight - 18,
+                left: light.positionX! * PLAN_W - 18,
+                top: light.positionY! * planHeight - 18,
               },
               light.isOn && styles.lightBtnOn,
             ]}
